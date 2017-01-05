@@ -32,6 +32,11 @@
 *.dSYM/
 *.su
 
+# Eclipse project settings
+.cproject
+.project
+.settings/*
+
 # Binaries
 Debug/sComparator
 Release/sComparator
