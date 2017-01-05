@@ -31,3 +31,7 @@
 # Debug files
 *.dSYM/
 *.su
+
+# Binaries
+Debug/sComparator
+Release/sComparator
