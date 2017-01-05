@@ -20,6 +20,9 @@
 *.so.*
 *.dylib
 
+# Make dependencies
+*.d
+
 # Executables
 *.exe
 *.out
