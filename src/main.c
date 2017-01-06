@@ -28,6 +28,8 @@
 #include <assert.h>
 #include <sys/ioctl.h>   /* ioctl()                            */
 
+struct timeval t1;
+
 int getCTS(int fd)
 {
     int s;
@@ -43,7 +45,6 @@ unsigned long printTime(int n)
 	current_time = time(NULL);
 	c_time_str = ctime(&current_time);
 	printf("%d. Current time is %s\n", n, c_time_str);*/
-	struct timeval t1;
 	gettimeofday(&t1, NULL);
 	//printf("%d. Current time in micro is %lu\n", n, t1.tv_usec);
 	return t1.tv_usec;
@@ -54,8 +55,9 @@ unsigned long printTime(int n)
  * @return Result of application execution
  */
 int main(int argc, char *argv[]) {
-	char ttydev[] = "/dev/ttyUSB0";
-	int fd;
+	char ttydev1[] = "/dev/ttyUSB0";
+	char ttydev2[] = "/dev/ttyUSB1";
+	int fd1, fd2;
 
 	// Check arguments
 	int i;
@@ -68,55 +70,60 @@ int main(int argc, char *argv[]) {
 		// no arguments. Use default.
 		break;
 	case 2:
-		strcpy(ttydev, argv[1]);
+		strcpy(ttydev1, argv[1]);
+		strcpy(ttydev2, "");
+		break;
+	case 3:
+		strcpy(ttydev1, argv[1]);
+		strcpy(ttydev2, argv[2]);
 		break;
 	default:
 		printf("invalid number of arguments. Exit.\n");
 		return EXIT_FAILURE;
 		break;
 	}
-	printf("Using TTY device: %s\n", ttydev);
 
-	fd = open(ttydev, O_RDWR | O_NOCTTY);
-	if (fd == 1) {
-		fprintf(stderr, "Error in opening %s\n", ttydev);
+	if (strlen(ttydev1) > 4){
+		printf("Using TTY device: %s\n", ttydev1);
+	}
+
+	fd1 = open(ttydev1, O_RDWR | O_NOCTTY);
+	if (fd1 == 1) {
+		fprintf(stderr, "Error in opening %s\n", ttydev1);
 		return EXIT_FAILURE;
 	} else {
-		printf("%s opened successfully\n", ttydev);
+		printf("%s opened successfully\n", ttydev1);
 	}
 
 	/*---------- Setting the Attributes of the serial port using termios structure --------- */
 
-	struct termios SerialPortSettings; /* Create the structure                          */
+	struct termios SerialPortSettings1; /* Create the structure                          */
 
-	tcgetattr(fd, &SerialPortSettings); /* Get the current attributes of the Serial port */
+	tcgetattr(fd1, &SerialPortSettings1); /* Get the current attributes of the Serial port */
 
-	cfsetispeed(&SerialPortSettings, B115200); /* Set Read  Speed as 115200                       */
-	cfsetospeed(&SerialPortSettings, B115200); /* Set Write Speed as 115200                       */
+	cfsetispeed(&SerialPortSettings1, B115200); /* Set Read  Speed as 115200                       */
+	cfsetospeed(&SerialPortSettings1, B115200); /* Set Write Speed as 115200                       */
 
-	SerialPortSettings.c_cflag &= ~PARENB; /* Disables the Parity Enable bit(PARENB),So No Parity   */
-	SerialPortSettings.c_cflag &= ~CSTOPB; /* CSTOPB = 2 Stop bits,here it is cleared so 1 Stop bit */
-	SerialPortSettings.c_cflag &= ~CSIZE; /* Clears the mask for setting the data size             */
-	SerialPortSettings.c_cflag |= CS8; /* Set the data bits = 8                                 */
-
-	SerialPortSettings.c_cflag &= ~CRTSCTS; /* No Hardware flow Control                         */
-	SerialPortSettings.c_cflag |= CREAD | CLOCAL; /* Enable receiver,Ignore Modem Control lines       */
+	SerialPortSettings1.c_cflag &= ~PARENB; /* Disables the Parity Enable bit(PARENB),So No Parity   */
+	SerialPortSettings1.c_cflag &= ~CSTOPB; /* CSTOPB = 2 Stop bits,here it is cleared so 1 Stop bit */
+	SerialPortSettings1.c_cflag &= ~CSIZE; /* Clears the mask for setting the data size             */
+	SerialPortSettings1.c_cflag |= CS8; /* Set the data bits = 8                                 */
+	SerialPortSettings1.c_cflag &= ~CRTSCTS; /* No Hardware flow Control                         */
+	SerialPortSettings1.c_cflag |= CREAD | CLOCAL; /* Enable receiver,Ignore Modem Control lines */
 
 	/* Setting Time outs */
-	SerialPortSettings.c_cc[VMIN] = 24; /* Read 10 characters */
-	SerialPortSettings.c_cc[VTIME] = 0; /* Wait indefinitely would be 0  */
+	SerialPortSettings1.c_cc[VMIN] = 24; /* Read 10 characters */
+	SerialPortSettings1.c_cc[VTIME] = 0; /* Wait indefinitely would be 0  */
 
-	SerialPortSettings.c_iflag &= ~(IXON | IXOFF | IXANY); /* Disable XON/XOFF flow control */
-	//SerialPortSettings.c_iflag |= IXON | IXOFF | IXANY; /* Enable XON/XOFF flow control */
-	SerialPortSettings.c_iflag &= ~(ICANON | ECHO | ECHOE | ISIG); /* Non Cannonical mode                            */
-
-	SerialPortSettings.c_oflag &= ~OPOST;/*No Output Processing*/
+	SerialPortSettings1.c_iflag &= ~(IXON | IXOFF | IXANY); /* Disable XON/XOFF flow control */
+	SerialPortSettings1.c_iflag &= ~(ICANON | ECHO | ECHOE | ISIG); /* Non Cannonical mode  */
+	SerialPortSettings1.c_oflag &= ~OPOST; /*No Output Processing*/
 
 	/* Flush Port, then applies attributes */
-	tcflush(fd, TCIFLUSH);
+	tcflush(fd1, TCIFLUSH);
 
 	int result;
-	if ((result = tcsetattr(fd, TCSANOW, &SerialPortSettings)) != 0) { /* Set the attributes to the termios structure*/
+	if ((result = tcsetattr(fd1, TCSANOW, &SerialPortSettings1)) != 0) { /* Set the attributes to the termios structure*/
 		fprintf(stderr, "ERROR %d in Setting attributes\n", result);
 		return EXIT_FAILURE;
 	} else {
@@ -142,27 +149,27 @@ int main(int argc, char *argv[]) {
 	char response [256];
 	memset (&response, '\0', sizeof response);
 
-	unsigned long start, stop;
-	for(i=0; i<10; i++){
+	unsigned long start, stop, diff;
+	for(i=0; i<100; i++){
 		int spot = 0;
 		char read_buf = '\0';
 		int byte_read = 0;
 
 		printTime(1);
 
-		while(getCTS(fd)){
+		while(getCTS(fd1)){
 			usleep(1);
 		}
 		start = printTime(2);
-		//printf("Status of CTS: %d\n", getCTS(fd));
-		/*if(!getCTS(fd)){
+		//printf("Status of CTS: %d\n", getCTS(fd1));
+		/*if(!getCTS(fd1)){
 			do {
-				byte_read = read(fd, &read_buf, 1 );
+				byte_read = read(fd1, &read_buf, 1 );
 				sprintf( &response[spot], "%c", read_buf );
 				spot += byte_read;
 			} while (read_buf != '\n' && byte_read > 0);
 
-			tcflush(fd, TCIFLUSH);
+			tcflush(fd1, TCIFLUSH);
 
 			if (byte_read < 0) {
 				printf("Error reading: %s\n", strerror(errno));
@@ -183,12 +190,18 @@ int main(int argc, char *argv[]) {
 			}*/
 		//}
 		printTime(3);
-		while(!getCTS(fd)){
+		while(!getCTS(fd1)){
 			usleep(1);
 		}
 		stop = printTime(4);
-		//printf("Status of CTS: %d\n", getCTS(fd));
-		printf("Delay in microseconds: %lu\n", stop - start);
+		//printf("Status of CTS: %d\n", getCTS(fd1));
+		if (start > stop){
+			diff = 1000000 - start + stop;
+		} else {
+			diff = stop - start;
+		}
+
+		printf("Delay in microseconds: %lu, from start %lu until stop %lu\n", diff , start, stop);
 	}
 
 
@@ -196,10 +209,10 @@ int main(int argc, char *argv[]) {
 	 char read_buffer[32];
 	 int  bytes_read = 0;
 
-	 bytes_read = read(fd,&read_buffer,32);
+	 bytes_read = read(fd1,&read_buffer,32);
 	 printf("Bytes read: %d\n", bytes_read);
 	 */
-	close(fd);
+	close(fd1);
 	return EXIT_SUCCESS;
 }
 
